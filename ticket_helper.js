@@ -1,11 +1,10 @@
-// ==UserS,ript==
+// ==UserScript==
 // @name         12306 抢票助手 Pro
 // @namespace    http://tampermonkey.net/
 // @version      1.2
 // @description  自动查票、下单 (集成 Network, Ticket, Order, UI 模块)
 // @author       kl2
 // @match        https://kyfw.12306.cn/otn/*
-// @match        https://www.12306.cn/*
 // @grant        none
 // ==/UserScript==
 
@@ -291,7 +290,13 @@
             let passengerTicketList = [];
             let oldPassengerList = [];
             passengers.forEach(p => {
-                let ticketType = p.passenger_type || TICKET_TYPE_CODE[p.passenger_type_name] || '1';
+                let ticketType = '';
+                // 如果是学生乘客并勾选了学生票，则强制使用学生票类型（'3'），否则使用乘客本身的类型或默认为成人
+                if ((p.passenger_type || TICKET_TYPE_CODE[p.passenger_type_name]) == '3'){
+                    ticketType = p.isStudentTicket ? '3' : '1';
+                } else {
+                    ticketType = (p.passenger_type || TICKET_TYPE_CODE[p.passenger_type_name] || '1');
+                }
                 const allEncStr = p.allEncStr || '';
                 const pStr = `${seatCode},0,${ticketType},${p.passenger_name},${p.passenger_id_type_code},${p.passenger_id_no},${p.mobile_no || ''},N,${allEncStr}`;
                 passengerTicketList.push(pStr);
@@ -491,8 +496,21 @@
             const container = document.getElementById('th-passenger-list');
             container.innerHTML = '';
             list.forEach(p => {
+                const isStudent = p.passenger_type_name === '学生' || p.passenger_type === '3';
                 const div = document.createElement('div');
-                div.innerHTML = `<label style="display:inline-flex; align-items:center; margin-right:10px; font-weight:normal;"><input type="checkbox" value="${p.passenger_name}" data-full='${JSON.stringify(p)}'> ${p.passenger_name}</label>`;
+                div.style.marginBottom = '4px';
+                
+                let html = `<label style="display:inline-flex; align-items:center; margin-right:10px; font-weight:normal;">
+                    <input type="checkbox" class="th-p-check" value="${p.passenger_name}" data-full='${JSON.stringify(p)}'> ${p.passenger_name}
+                </label>`;
+                
+                if (isStudent) {
+                    html += `<label style="display:inline-flex; align-items:center; font-size:12px; color:#666;">
+                        <input type="checkbox" class="th-p-student-check" style="margin-left:5px;"> 学生票
+                    </label>`;
+                }
+                
+                div.innerHTML = html;
                 container.appendChild(div);
             });
         }
@@ -509,7 +527,16 @@
             const trains = document.getElementById('th-trains').value.split(/[,，]/).map(s => s.trim()).filter(s => s);
             const seats = document.getElementById('th-seats').value.split(/[,，]/).map(s => s.trim()).filter(s => s);
             const selectedPassengers = [];
-            document.querySelectorAll('#th-passenger-list input:checked').forEach(checkbox => selectedPassengers.push(JSON.parse(checkbox.dataset.full)));
+            document.querySelectorAll('#th-passenger-list .th-p-check:checked').forEach(checkbox => {
+                const passengerData = JSON.parse(checkbox.dataset.full);
+                // 检查同一行是否勾选了“学生票”
+                const parentDiv = checkbox.closest('div');
+                const studentCheck = parentDiv.querySelector('.th-p-student-check');
+                if (studentCheck && studentCheck.checked) {
+                    passengerData.isStudentTicket = true;
+                }
+                selectedPassengers.push(passengerData);
+            });
             return { trainDate: date, fromStation: from, toStation: to, trainCodes: trains, seatTypes: seats, passengers: selectedPassengers };
         }
 
