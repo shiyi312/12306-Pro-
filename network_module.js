@@ -267,12 +267,12 @@ const NetworkModule = (() => {
                 'oldPassengerStr': oldPassengerStr,
                 'purpose_codes': '00',
                 'key_check_isChange': keyCheckIsChange,
-                'leftTicketStr': decodeURIComponent(leftTicketStr), // 必须解码，防止 URLSearchParams 二次编码
+                'leftTicketStr': leftTicketStr, // 还原：直接传递，让 URLSearchParams 自动进行必要的二次编码
                 'train_location': trainLocation, 
                 'choose_seats': '',
                 'seatDetailType': '000', // 默认 000
                 'is_jy': 'N', // 新增参数
-                'is_cj': 'Y', // 改为 N (更通用，除非确定是城际)
+                'is_cj': 'Y', // 改回 Y (匹配用户成功抓包)
                 'encryptedData': '', // 新增参数
                 'whatsSelect': '1',
                 'roomType': '00',
@@ -403,6 +403,7 @@ async function runNetworkTests() {
     console.log('Testing getInitDcPage...');
     let token = '';
     let keyCheckIsChange = '';
+    let leftTicketStr = '';
     try {
         const html = await NetworkModule.getInitDcPage();
         console.log('InitDc Page Length:', html.length);
@@ -415,6 +416,8 @@ async function runNetworkTests() {
 
         let keyMatch = html.match(/key_check_isChange\s*=\s*'(\w+)'/);
         if (!keyMatch) keyMatch = html.match(/'?key_check_isChange'?\s*[:=]\s*'(\w+)'/);
+
+        let leftTicketMatch = html.match(/'leftTicketStr'\s*:\s*'([^']+)'/); // 尝试匹配 initDc 中的 leftTicketStr
         
         if (tokenMatch && keyMatch) {
             token = tokenMatch[1];
@@ -424,6 +427,13 @@ async function runNetworkTests() {
         } else {
             console.warn('⚠️ Token extraction failed. (Possibly not logged in)');
             console.warn('HTML :', html);
+        }
+
+        if (leftTicketMatch && leftTicketMatch[1]) {
+            leftTicketStr = leftTicketMatch[1];
+            console.log(`✅ LeftTicketStr extracted: ${leftTicketStr}`);
+        } else {
+            console.log('ℹ️ LeftTicketStr not found in initDc');
         }
     } catch (e) {
         console.error('❌ getInitDcPage failed', e);
@@ -458,7 +468,7 @@ async function runNetworkTests() {
         const allEncStr = passenger.allEncStr || ''; // 获取加密串
         
         const passengerTicketStr = `${seatType},0,${ticketType},${passenger.passenger_name},${passenger.passenger_id_type_code},${passenger.passenger_id_no},${passenger.mobile_no || ''},N,${allEncStr}`;
-        const oldPassengerStr = `${passenger.passenger_name},${passenger.passenger_id_type_code},${passenger.passenger_id_no},1_`;
+        const oldPassengerStr = `${passenger.passenger_name},${passenger.passenger_id_type_code},${passenger.passenger_id_no},3_`;
 
         console.log('Constructed passengerTicketStr:', passengerTicketStr);
 
@@ -478,7 +488,6 @@ async function runNetworkTests() {
 
         // 7. 测试 getQueueCount (获取排队)
         console.log('Testing getQueueCount...');
-        let leftTicketStr = '';
         if (realTrainInfo) {
             try {
                  const queueRes = await NetworkModule.getQueueCount(
@@ -493,7 +502,6 @@ async function runNetworkTests() {
                 console.log('Queue Result:', queueRes);
                 if (queueRes.data) {
                     console.log(`✅ Queue Info: Count=${queueRes.data.countT}, Ticket=${queueRes.data.ticket}, Op=${queueRes.data.op_2}`);
-                    leftTicketStr = queueRes.data.ticket; // 获取 leftTicketStr
                 }
             } catch (e) {
                 console.error('❌ getQueueCount failed', e);
@@ -503,26 +511,24 @@ async function runNetworkTests() {
         }
 
         // 8. 测试 confirmSingleForQueue (最终下单 - 慎用！)
-        // 这一步会真的下单，建议在测试时注释掉或仅在明确需要时执行
         console.log('Testing confirmSingleForQueue...');
-        
+
         if (realTrainInfo && leftTicketStr) {
              try {
                 // 注意：这里仍然有风险，如果你不想真的下单，请不要解开下面的注释，或者确保账号里没有钱
-                // 但为了回答你的问题，我们需要确保所有参数正确传递
-                // /*
-                const confirmRes = await NetworkModule.confirmSingleForQueue(
-                    passengerTicketStr, 
-                    oldPassengerStr, 
-                    keyCheckIsChange, 
-                    token, 
-                    leftTicketStr, 
-                    realTrainInfo.trainLocation
-                );
-                console.log('Confirm Result:', confirmRes);
-                // */
+
+                // const confirmRes = await NetworkModule.confirmSingleForQueue(
+                //     passengerTicketStr, 
+                //     oldPassengerStr, 
+                //     keyCheckIsChange, 
+                //     token, 
+                //     leftTicketStr, 
+                //     realTrainInfo.trainLocation
+                // );
+                // console.log('Confirm Result:', confirmRes);
+
                 console.log('⚠️ confirmSingleForQueue call is ready but commented out. Params check:');
-                console.log('   leftTicketStr:', leftTicketStr);
+                console.log('   leftTicketStr (Used):', leftTicketStr);
                 console.log('   trainLocation:', realTrainInfo.trainLocation);
                 console.log('   keyCheckIsChange:', keyCheckIsChange);
             } catch (e) {
