@@ -61,6 +61,7 @@ const TicketLogicModule = (() => {
             canBuy: parts[11],          // Y: 可买, N: 不可买
             leftTicket: parts[12],      // 余票相关字段
             trainDate: parts[13],       // 发车日期 (20241220)
+            trainLocation: parts[15],   // 关键参数：train_location (Index 15)
             
             // 余票信息 (解析具体数量: '有', '无', '5', '')
             tickets: {
@@ -132,7 +133,8 @@ const TicketLogicModule = (() => {
                                 fromStation: info.fromStation,
                                 toStation: info.toStation,
                                 seatName: seatName,
-                                leftTicket: info.leftTicket
+                                leftTicket: info.leftTicket,
+                                trainLocation: info.trainLocation // 确保传递
                             };
                         } else {
                             console.log(`[TicketLogic] ${targetTrainCode} - ${seatName}: No tickets (${stock})`);

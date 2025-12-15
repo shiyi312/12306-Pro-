@@ -281,7 +281,7 @@ const NetworkModule = (() => {
                 'REPEAT_SUBMIT_TOKEN': token
             });
 
-            console.log('confirmSingleForQueue request body:', body.toString());
+            // console.log('confirmSingleForQueue request body:', body.toString());
 
             return request('/otn/confirmPassenger/confirmSingleForQueue', {
                 method: 'POST',
