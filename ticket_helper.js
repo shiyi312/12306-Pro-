@@ -2,7 +2,7 @@
 // @name         12306 抢票助手 Pro
 // @namespace    http://tampermonkey.net/
 // @version      1.2
-// @description  自动查票、下单 (集成 Network, Ticket, Order, UI 模块)
+// @description  自动查票、下单 
 // @author       kl2
 // @match        https://kyfw.12306.cn/otn/*
 // @grant        none
@@ -17,8 +17,7 @@
     // 0. Configuration (配置)
     // ==========================================
     // 站点简码映射表 (Name -> Code)
-    // 请在此处补充完整的站点映射，例如: { '北京': 'BJP', '上海': 'SHH', ... }
-    // 可以从 https://kyfw.12306.cn/otn/resources/js/framework/station_name.js 获取
+    // 从 https://kyfw.12306.cn/otn/resources/js/framework/station_name.js 获取
     let stationMap = {};
 
     async function fetchStationMap() {
@@ -446,6 +445,11 @@
                         <label>出发日期</label>
                         <input type="date" class="th-input" id="th-date" value="${state.config.trainDate}">
                     </div>
+                    <div class="th-form-group">
+                        <label>定时抢票 (可选)</label>
+                        <input type="time" class="th-input" id="th-start-time" step="1">
+                        <div style="font-size:12px; color:#666; margin-top:2px;">设置后将在指定时间自动开始抢票</div>
+                    </div>
                     <div class="th-form-group" style="display:flex; gap:10px;">
                         <div style="flex:1"><label>出发站 (中文)</label><input type="text" class="th-input" id="th-from" value="${state.config.fromStation}" placeholder="如 上海"></div>
                         <div style="flex:1"><label>到达站 (中文)</label><input type="text" class="th-input" id="th-to" value="${state.config.toStation}" placeholder="如 杭州"></div>
@@ -526,6 +530,8 @@
 
             const trains = document.getElementById('th-trains').value.split(/[,，]/).map(s => s.trim()).filter(s => s);
             const seats = document.getElementById('th-seats').value.split(/[,，]/).map(s => s.trim()).filter(s => s);
+            const startTime = document.getElementById('th-start-time').value;
+            
             const selectedPassengers = [];
             document.querySelectorAll('#th-passenger-list .th-p-check:checked').forEach(checkbox => {
                 const passengerData = JSON.parse(checkbox.dataset.full);
@@ -537,7 +543,7 @@
                 }
                 selectedPassengers.push(passengerData);
             });
-            return { trainDate: date, fromStation: from, toStation: to, trainCodes: trains, seatTypes: seats, passengers: selectedPassengers };
+            return { trainDate: date, fromStation: from, toStation: to, trainCodes: trains, seatTypes: seats, passengers: selectedPassengers, startTime: startTime };
         }
 
         function start() {
@@ -598,8 +604,69 @@
     // ==========================================
     let checkInterval = null;
     let isChecking = false;
+    let countdownInterval = null;
 
     async function startTask(config) {
+        if (isChecking) return;
+        
+        const { trainDate, fromStation, toStation, trainCodes, seatTypes, passengers, startTime } = config;
+
+        // 如果设置了定时抢票，且时间未到，则进入倒计时模式
+        if (startTime) {
+            const now = new Date();
+            const [h, m, s] = startTime.split(':').map(Number);
+            const targetTime = new Date();
+            targetTime.setHours(h, m, s || 0, 0);
+
+            // 如果目标时间已过，假设是明天的这个时间（或者直接开始？这里逻辑取直接开始，或者提示用户）
+            // 通常抢票场景是当天稍晚的时间。如果设置的时间已经过去了，就直接开始吧，或者提示警告。
+            // 这里为了保险，如果设置的时间比现在晚，就倒计时；如果早，就直接开始。
+            if (targetTime > now) {
+                isChecking = true; // 标记为运行中，防止重复点击
+                UIModule.log(`已设置定时抢票，目标时间: ${startTime}`, 'info');
+                
+                // 启动倒计时
+                countdownInterval = setInterval(async () => {
+                    if (!UIModule.getIsRunning()) {
+                        clearInterval(countdownInterval);
+                        isChecking = false;
+                        return;
+                    }
+                    
+                    const currentNow = new Date();
+                    const diff = targetTime - currentNow;
+                    
+                    if (diff <= 0) {
+                        clearInterval(countdownInterval);
+                        UIModule.log('⏰ 时间到！开始抢票！', 'success');
+                        isChecking = false; // 重置标志位以便 executeTask 能正常运行
+                        executeTask(config);
+                    } else {
+                        // 每隔 30 秒发一个保活请求，防止 session 过期
+                        if (diff % 30000 < 1000) { 
+                             try { await NetworkModule.checkLoginStatus(); } catch(e){} 
+                        }
+                        
+                        // 显示倒计时
+                        const hours = Math.floor(diff / 3600000);
+                        const minutes = Math.floor((diff % 3600000) / 60000);
+                        const seconds = Math.floor((diff % 60000) / 1000);
+                        // 可以在日志里刷屏，也可以只在最后几秒刷。这里为了简洁，每10秒或最后10秒输出日志
+                        if (diff < 10000 || diff % 10000 < 1000) {
+                             UIModule.log(`倒计时: ${hours}时${minutes}分${seconds}秒`, 'info');
+                        }
+                    }
+                }, 1000);
+                return;
+            } else {
+                 UIModule.log('设置的时间已过，立即开始抢票', 'warn');
+            }
+        }
+
+        executeTask(config);
+    }
+
+    async function executeTask(config) {
         if (isChecking) return;
         isChecking = true;
         
@@ -616,6 +683,7 @@
             if (!loginStatus) {
                 UIModule.log('未登录，请先登录！', 'error');
                 isChecking = false;
+                // 如果是定时任务，此时停止会很尴尬。但未登录确实没法抢。
                 return;
             }
         } catch (e) { UIModule.log('检查登录状态失败', 'error'); }
@@ -660,7 +728,7 @@
                         setTimeout(() => {
                             if (UIModule.getIsRunning()) {
                                 isChecking = false;
-                                startTask(config);
+                                executeTask(config);
                             }
                         }, 3000);
                     }
@@ -679,6 +747,7 @@
 
     function stopTask() {
         if (checkInterval) { clearInterval(checkInterval); checkInterval = null; }
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
         isChecking = false;
         UIModule.log('已停止刷票', 'warn');
     }
