@@ -274,8 +274,7 @@
     // ==========================================
     const OrderLogicModule = (() => {
         const REGEX_TOKEN = /globalRepeatSubmitToken\s*=\s*'(\w+)'/;
-        const REGEX_KEY_CHECK = /key_check_isChange\s*=\s*'(\w+)'/;
-        const REGEX_KEY_CHECK_FALLBACK = /'key_check_isChange':'(\w+)'/;
+        const REGEX_KEY_CHECK = /'key_check_isChange':'(\w+)'/;
         const REGEX_LEFT_TICKET = /'leftTicketStr'\s*:\s*'([^']+)'/;
 
         const SEAT_TYPE_CODE = {
@@ -327,9 +326,9 @@
 
                     console.log('[OrderLogic] Step 2: Getting token...');
                     const htmlContent = await NetworkModule.getInitDcPage();
+                    console.log('[OrderLogic] Step 2 HTML Content:', htmlContent);
                     const tokenMatch = htmlContent.match(REGEX_TOKEN);
-                    let keyMatch = htmlContent.match(REGEX_KEY_CHECK);
-                    if (!keyMatch) keyMatch = htmlContent.match(REGEX_KEY_CHECK_FALLBACK);
+                    const keyMatch = htmlContent.match(REGEX_KEY_CHECK);
                     const leftTicketMatch = htmlContent.match(REGEX_LEFT_TICKET);
 
                     if (!tokenMatch || !keyMatch) throw new Error('Failed to parse Token or KeyCheck.');
@@ -376,7 +375,10 @@
                     return { success: false, error: error.message };
                 }
             },
-            _buildPassengerStrings: buildPassengerStrings
+            _buildPassengerStrings: buildPassengerStrings,
+            REGEX_TOKEN,
+            REGEX_KEY_CHECK,
+            REGEX_LEFT_TICKET
         };
     })();
 
@@ -606,6 +608,67 @@
     let isChecking = false;
     let countdownInterval = null;
 
+    async function keepAlive(config) {
+        // 随机等待 30s - 60s
+        const randomDelay = Math.floor(Math.random() * (60000 - 30000 + 1)) + 30000;
+        return randomDelay;
+    }
+
+    async function sendKeepAliveRequest(config) {
+         // 随机策略：
+         // 40% 查票 (模拟浏览)
+         // 20% 检查登录 (轻量保活)
+         // 40% 请求下单页 (深度保活 & 预热)
+        const rand = Math.random();
+        try {
+            if (rand < 0.4) {
+                console.log('[KeepAlive] Sent silent query tickets request');
+                const { trainDate, fromStation, toStation } = config;
+                const queryRes = await NetworkModule.queryTickets(trainDate, fromStation, toStation);
+                if (!queryRes || !queryRes.status || !queryRes.data || !queryRes.data.result) {
+                    console.warn('[KeepAlive] 查票接口返回异常,可能已失效');
+                } else {
+                    console.log('[KeepAlive] 查票接口返回正常');
+                }
+            } else if (rand < 0.8) {
+                // 请求下单页面，这是最强的保活，同时检测 session 是否假死
+                
+                // 1. 先发起一个模拟的 submitOrderRequest (无需真实参数，只需让服务器认为我们在提交订单流程中)
+                // 这一步对于激活 Order Session 非常关键
+                try {
+                    const { trainDate, fromStation, toStation } = config;
+                    // 使用空的 secretStr 模拟请求，通常会返回 false，但足以激活 Session
+                    await NetworkModule.submitOrderRequest('', trainDate, trainDate, fromStation, toStation);
+                } catch (e) { /* 忽略错误，这只是保活 */ }
+
+                // 2. 然后再请求 initDc
+                const html = await NetworkModule.getInitDcPage();
+                const tokenMatch = html.match(OrderLogicModule.REGEX_TOKEN);
+                const keyMatch = html.match(OrderLogicModule.REGEX_KEY_CHECK);
+                const leftTicketMatch = html.match(OrderLogicModule.REGEX_LEFT_TICKET);
+                // console.log('html:', html);
+                
+                console.log('[KeepAlive] Sent initDc request (Deep Keep-Alive)')
+                // if (html && (tokenMatch === null || keyMatch === null || leftTicketMatch === null)) {
+                //     UIModule.log('⚠️ 警告:检测到会话可能已失效(下单页缺少Token/Key/LeftTicket)，建议立即刷新重新登录！', 'error');
+                // } else {
+                //     console.log('[KeepAlive] Sent initDc request (Deep Keep-Alive)');
+                //     console.log('token:', tokenMatch[1]);
+                //     console.log('key:', keyMatch[1]);
+                //     console.log('leftTicket:', leftTicketMatch[1]);
+                // }
+            } else {
+                console.log('[KeepAlive] Sent check user request');
+                const isLoggedIn = await NetworkModule.checkLoginStatus();
+                if (!isLoggedIn) {
+                    console.warn('[KeepAlive] 未登录,跳过保活请求');
+                }
+            }
+        } catch (e) {
+            console.error('[KeepAlive] Request failed', e);
+        }
+    }
+
     async function startTask(config) {
         if (isChecking) return;
         
@@ -624,7 +687,10 @@
             if (targetTime > now) {
                 isChecking = true; // 标记为运行中，防止重复点击
                 UIModule.log(`已设置定时抢票，目标时间: ${startTime}`, 'info');
+                UIModule.log('提示: 请保持页面在前台运行，以防浏览器休眠导致抢票失败', 'warn');
                 
+                let nextKeepAliveTime = Date.now() + await keepAlive(config);
+
                 // 启动倒计时
                 countdownInterval = setInterval(async () => {
                     if (!UIModule.getIsRunning()) {
@@ -642,9 +708,10 @@
                         isChecking = false; // 重置标志位以便 executeTask 能正常运行
                         executeTask(config);
                     } else {
-                        // 每隔 30 秒发一个保活请求，防止 session 过期
-                        if (diff % 30000 < 1000) { 
-                             try { await NetworkModule.checkLoginStatus(); } catch(e){} 
+                        // 动态随机间隔保活
+                        if (Date.now() >= nextKeepAliveTime) {
+                             await sendKeepAliveRequest(config);
+                             nextKeepAliveTime = Date.now() + await keepAlive(config);
                         }
                         
                         // 显示倒计时
