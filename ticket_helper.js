@@ -20,6 +20,10 @@
     // 从 https://kyfw.12306.cn/otn/resources/js/framework/station_name.js 获取
     let stationMap = {};
 
+    /**
+     * @description 从12306官网获取最新的站点简码表，并解析存入 stationMap
+     * @returns {Promise<void>} 无返回值，异步更新全局 stationMap
+     */
     async function fetchStationMap() {
         try {
             console.log('正在获取站点简码表...');
@@ -59,6 +63,12 @@
         const BASE_URL = 'https://kyfw.12306.cn';
         let QUERY_URL = '/otn/leftTicket/query'; 
 
+        /**
+         * @description 发送 HTTP 请求的通用封装
+         * @param {string} url - 请求地址（相对路径或绝对路径）
+         * @param {Object} options - fetch 选项 (method, headers, body 等)
+         * @returns {Promise<Object|string>} 返回 JSON 对象或文本内容
+         */
         async function request(url, options = {}) {
             const defaultOptions = {
                 method: 'GET',
@@ -94,12 +104,24 @@
         }
 
         return {
+            /**
+             * @description 检查用户是否登录
+             * @returns {Promise<boolean>} true 已登录, false 未登录
+             */
             async checkLoginStatus() {
                 try {
                     const data = await request('/otn/login/checkUser', { method: 'POST', body: '_json_att=' });
                     return data && data.data && data.data.flag === true;
                 } catch (e) { return false; }
             },
+            /**
+             * @description 查询余票信息
+             * @param {string} trainDate - 发车日期 (YYYY-MM-DD)
+             * @param {string} fromStation - 出发站简码
+             * @param {string} toStation - 到达站简码
+             * @param {string} purposeCodes - 乘客类型代码 (默认 'ADULT')
+             * @returns {Promise<Object>} 查询结果 JSON
+             */
             async queryTickets(trainDate, fromStation, toStation, purposeCodes = 'ADULT') {
                 const params = new URLSearchParams({
                     'leftTicketDTO.train_date': trainDate,
@@ -109,6 +131,15 @@
                 });
                 return request(`${QUERY_URL}?${params.toString()}`);
             },
+            /**
+             * @description 提交预订请求 (下单第一步)
+             * @param {string} secretStr - 车次加密字符串
+             * @param {string} trainDate - 发车日期
+             * @param {string} backTrainDate - 返程日期 (通常同去程)
+             * @param {string} fromStationName - 出发站中文名
+             * @param {string} toStationName - 到达站中文名
+             * @returns {Promise<Object>} 响应结果
+             */
             async submitOrderRequest(secretStr, trainDate, backTrainDate, fromStationName, toStationName) {
                 const body = new URLSearchParams({
                     'secretStr': decodeURIComponent(secretStr),
@@ -122,6 +153,10 @@
                 });
                 return request('/otn/leftTicket/submitOrderRequest', { method: 'POST', body: body });
             },
+            /**
+             * @description 获取下单页面初始化 HTML (下单第二步)
+             * @returns {Promise<string>} 页面 HTML 文本，用于提取 Token 和 Key
+             */
             async getInitDcPage() {
                 try {
                     const response = await fetch(`${BASE_URL}/otn/confirmPassenger/initDc`, {
@@ -132,9 +167,21 @@
                     return await response.text();
                 } catch (e) { throw e; }
             },
+            /**
+             * @description 获取常用联系人列表
+             * @returns {Promise<Object>} 包含联系人列表的 JSON
+             */
             async getPassengerDTOs() {
                 return request('/otn/confirmPassenger/getPassengerDTOs', { method: 'POST', body: '_json_att=' });
             },
+            /**
+             * @description 检查订单信息 (下单第三步)
+             * @param {string} passengerTicketStr - 乘客票务字符串
+             * @param {string} oldPassengerStr - 旧乘客字符串
+             * @param {string} tourFlag - 旅行类型 (默认 'dc')
+             * @param {string} token - 提交 Token
+             * @returns {Promise<Object>} 检查结果
+             */
             async checkOrderInfo(passengerTicketStr, oldPassengerStr, tourFlag = 'dc', token) {
                  const body = new URLSearchParams({
                     'cancel_flag': '2',
@@ -152,6 +199,17 @@
                 });
                 return request('/otn/confirmPassenger/checkOrderInfo', { method: 'POST', body: body });
             },
+            /**
+             * @description 获取排队人数 (下单第四步)
+             * @param {string|Date} trainDate - 发车日期
+             * @param {string} trainNo - 列车编号
+             * @param {string} stationTrainCode - 车次代码
+             * @param {string} seatType - 席别代码
+             * @param {string} fromStationTelecode - 出发站代码
+             * @param {string} toStationTelecode - 到达站代码
+             * @param {string} token - 提交 Token
+             * @returns {Promise<Object>} 排队信息
+             */
             async getQueueCount(trainDate, trainNo, stationTrainCode, seatType, fromStationTelecode, toStationTelecode, token) {
                  const body = new URLSearchParams({
                     'train_date': new Date(trainDate).toString(),
@@ -168,6 +226,16 @@
                 });
                 return request('/otn/confirmPassenger/getQueueCount', { method: 'POST', body: body });
             },
+            /**
+             * @description 确认提交订单 (下单第五步，最终步骤)
+             * @param {string} passengerTicketStr - 乘客票务字符串
+             * @param {string} oldPassengerStr - 旧乘客字符串
+             * @param {string} keyCheckIsChange - 关键检查 Key
+             * @param {string} token - 提交 Token
+             * @param {string} leftTicketStr - 余票字符串
+             * @param {string} trainLocation - 列车位置代码
+             * @returns {Promise<Object>} 提交结果
+             */
             async confirmSingleForQueue(passengerTicketStr, oldPassengerStr, keyCheckIsChange, token, leftTicketStr, trainLocation) {
                  const body = new URLSearchParams({
                     'passengerTicketStr': passengerTicketStr,
@@ -202,6 +270,11 @@
             '软卧': 23, '硬卧': 28, '硬座': 29, '无座': 26
         };
 
+        /**
+         * @description 解析单条车次原始数据字符串
+         * @param {string} rawString - 12306 返回的原始字符串 (以 | 分隔)
+         * @returns {Object|null} 解析后的车次信息对象，解析失败返回 null
+         */
         function parseTrainInfo(rawString) {
             if (!rawString) return null;
             const parts = rawString.split('|');
@@ -229,6 +302,11 @@
             };
         }
 
+        /**
+         * @description 判断是否有余票
+         * @param {string} stockStr - 余票字符串 ('有', '无', 或数字)
+         * @returns {boolean} true 有票, false 无票
+         */
         function hasTicket(stockStr) {
             if (!stockStr) return false;
             if (stockStr === '有') return true;
@@ -238,6 +316,13 @@
         }
 
         return {
+            /**
+             * @description 在查询结果中查找符合条件的目标车次
+             * @param {Array<string>} resultList - 查票接口返回的 result 数组
+             * @param {string} targetTrainCode - 目标车次号 (如 G123)
+             * @param {Array<string>} targetSeats - 目标席别列表 (如 ['二等座', '一等座'])
+             * @returns {Object|null} 找到的可用车次对象，未找到返回 null
+             */
             findTargetTrain(resultList, targetTrainCode, targetSeats = ['二等座']) {
                 if (!resultList || !Array.isArray(resultList)) return null;
                 for (const rawStr of resultList) {
@@ -284,6 +369,12 @@
 
         const TICKET_TYPE_CODE = { '成人': '1', '儿童': '2', '学生': '3', '残军': '4' };
 
+        /**
+         * @description 构造提交订单所需的乘客字符串
+         * @param {Array<Object>} passengers - 乘客对象列表
+         * @param {string} seatCode - 席别代码
+         * @returns {Object} 包含 passengerTicketStr 和 oldPassengerStr
+         */
         function buildPassengerStrings(passengers, seatCode) {
             let passengerTicketList = [];
             let oldPassengerList = [];
@@ -308,6 +399,12 @@
         }
 
         return {
+            /**
+             * @description 执行完整的下单流程 (Submit -> InitDc -> CheckOrder -> GetQueue -> Confirm)
+             * @param {Object} trainInfo - 目标车次信息
+             * @param {Array<Object>} passengers - 乘客列表
+             * @returns {Promise<Object>} 结果对象 { success: boolean, error?: string }
+             */
             async executeOrderSequence(trainInfo, passengers) {
                 console.log(`[OrderLogic] Starting order sequence for ${trainInfo.trainCode}`);
                 try {
@@ -428,6 +525,9 @@
         };
         let logContainer = null, onStartCallback = null, onStopCallback = null;
 
+        /**
+         * @description 创建并插入 UI 面板到页面
+         */
         function createPanel() {
             const oldPanel = document.getElementById('ticket-helper-panel');
             if (oldPanel) oldPanel.remove();
@@ -481,6 +581,9 @@
             logContainer = document.getElementById('th-logs');
         }
 
+        /**
+         * @description 绑定 UI 事件监听器
+         */
         function bindEvents() {
             document.getElementById('th-action-btn').addEventListener('click', () => {
                 state.isRunning ? stop() : start();
@@ -498,6 +601,10 @@
             });
         }
 
+        /**
+         * @description 渲染乘客列表复选框
+         * @param {Array<Object>} list - 乘客数据列表
+         */
         function renderPassengers(list) {
             const container = document.getElementById('th-passenger-list');
             container.innerHTML = '';
@@ -521,6 +628,10 @@
             });
         }
 
+        /**
+         * @description 获取当前 UI 配置
+         * @returns {Object} 配置对象
+         */
         function getConfig() {
             const date = document.getElementById('th-date').value;
             const fromName = document.getElementById('th-from').value.trim();
@@ -548,6 +659,9 @@
             return { trainDate: date, fromStation: from, toStation: to, trainCodes: trains, seatTypes: seats, passengers: selectedPassengers, startTime: startTime };
         }
 
+        /**
+         * @description 启动任务
+         */
         function start() {
             const config = getConfig();
             if (config.trainCodes.length === 0) return log('请输入目标车次', 'warn');
@@ -560,6 +674,9 @@
             if (onStartCallback) onStartCallback(config);
         }
 
+        /**
+         * @description 停止任务
+         */
         function stop() {
             state.isRunning = false;
             const btn = document.getElementById('th-action-btn');
@@ -568,6 +685,11 @@
             if (onStopCallback) onStopCallback();
         }
 
+        /**
+         * @description 输出日志到面板
+         * @param {string} msg - 日志消息
+         * @param {string} type - 日志类型 ('info' | 'success' | 'error' | 'warn')
+         */
         function log(msg, type = 'info') {
             if (!logContainer) return;
             const entry = document.createElement('div');
@@ -578,6 +700,10 @@
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
+        /**
+         * @description 使元素可拖拽
+         * @param {HTMLElement} element - 目标元素
+         */
         function makeDraggable(element) {
             const header = element.querySelector('.th-header');
             let isDragging = false, startX, startY, initialLeft, initialTop;
@@ -608,12 +734,21 @@
     let isChecking = false;
     let countdownInterval = null;
 
+    /**
+     * @description 生成随机的保活等待时间
+     * @param {Object} config - 配置对象 (未使用)
+     * @returns {Promise<number>} 随机毫秒数 (30000 - 60000)
+     */
     async function keepAlive(config) {
         // 随机等待 30s - 60s
         const randomDelay = Math.floor(Math.random() * (60000 - 30000 + 1)) + 30000;
         return randomDelay;
     }
 
+    /**
+     * @description 发送保活请求 (混合策略：查票/模拟下单/检查登录)
+     * @param {Object} config - 配置对象
+     */
     async function sendKeepAliveRequest(config) {
          // 随机策略：
          // 40% 查票 (模拟浏览)
@@ -669,6 +804,10 @@
         }
     }
 
+    /**
+     * @description 启动抢票任务 (入口)
+     * @param {Object} config - 配置对象
+     */
     async function startTask(config) {
         if (isChecking) return;
         
@@ -735,6 +874,10 @@
         executeTask(config);
     }
 
+    /**
+     * @description 执行具体的抢票逻辑 (轮询查票 -> 下单)
+     * @param {Object} config - 配置对象
+     */
     async function executeTask(config) {
         if (isChecking) return;
         isChecking = true;
@@ -814,6 +957,9 @@
         checkInterval = setInterval(doCheck, 2000); // 2秒轮询
     }
 
+    /**
+     * @description 停止所有任务 (清理定时器)
+     */
     function stopTask() {
         if (checkInterval) { clearInterval(checkInterval); checkInterval = null; }
         if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
