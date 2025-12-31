@@ -709,7 +709,9 @@
                         executeTask(config);
                     } else {
                         // 动态随机间隔保活
-                        if (Date.now() >= nextKeepAliveTime) {
+                        // 为了避免在即将抢票的关键时刻（例如最后2分钟）发送保活请求导致网络拥堵或被风控
+                        // 我们设置一个阈值：如果距离目标时间小于 120000ms (2分钟)，则停止发送新的保活请求
+                        if (diff > 120000 && Date.now() >= nextKeepAliveTime) {
                              await sendKeepAliveRequest(config);
                              nextKeepAliveTime = Date.now() + await keepAlive(config);
                         }
