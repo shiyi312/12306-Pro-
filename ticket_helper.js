@@ -826,7 +826,7 @@
             if (targetTime > now) {
                 isChecking = true; // 标记为运行中，防止重复点击
                 UIModule.log(`已设置定时抢票，目标时间: ${startTime}`, 'info');
-                UIModule.log('提示: 请保持页面在前台运行，以防浏览器休眠导致抢票失败', 'warn');
+                // UIModule.log('提示: 请保持页面在前台运行，以防浏览器休眠导致抢票失败', 'warn');
                 
                 let nextKeepAliveTime = Date.now() + await keepAlive(config);
 
