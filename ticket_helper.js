@@ -6,6 +6,7 @@
 // @author       kl2
 // @match        https://kyfw.12306.cn/otn/*
 // @grant        none
+// @license      MIT
 // ==/UserScript==
 
 (function() {
