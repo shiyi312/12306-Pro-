@@ -1,13 +1,21 @@
 # 🚄 12306 抢票助手 Pro（优化版）
 
-这是一款专为 12306 官网设计的 Tampermonkey（油猴）跟 脚本猫 的脚本，集成了自动查票、自动提交订单、定时抢票、多席别/多车次优选等功能。脚本界面简洁，支持拖拽，旨在帮助用户提高购票成功率，持续更新维护。  
-**想获取最新版插件地址请加入QQ裙：1101251488**（这个插件我不在github上更新，在脚本猫网站里更新！！！复制此链接到地址栏搜索 直接点击会报错：https://scriptcat.org/zh-CN/search）
+这是一款专为 12306 官网设计的 Tampermonkey（油猴）与脚本猫脚本，集成了自动查票、自动提交订单、定时抢票、多席别/多车次优选等功能。脚本界面简洁，支持拖拽，旨在帮助用户提高购票成功率，持续更新维护。
+
+**想获取最新版插件地址，请加入 QQ 群：1101251488**
+
+> 注意：本插件不在 GitHub 更新，仅在脚本猫网站更新。
+> 请复制以下链接到浏览器地址栏搜索，直接点击可能报错：
+> `https://scriptcat.org/zh-CN/search`
+
+或者直接访问脚本猫搜索页并手动搜索“12306抢票助手 pro”：
+[脚本猫搜索页](https://scriptcat.org/zh-CN/search)
 ---
 
 ## 📦 安装说明
 
 1.  **安装 Tampermonkey 插件**
-    *   如果您还没有安装 Tampermonkey，请前往 [Tampermonkey 官网](https://www.tampermonkey.net/) 或者[脚本猫 官网]（(https://scriptcat.org/zh-CN)下载并安装适用于您浏览器的扩展程序（Chrome, Edge, Firefox, Safari 等均支持）。
+    *   如果您还没有安装 Tampermonkey，请前往 [Tampermonkey 官网](https://www.tampermonkey.net/) 或者 [脚本猫 官网](https://scriptcat.org/zh-CN) 下载并安装适用于您浏览器的扩展程序（Chrome, Edge, Firefox, Safari 等均支持）。
     *   
     强烈推荐使用脚本猫！！！
 
