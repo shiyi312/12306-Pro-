@@ -7,12 +7,18 @@
 ## 📦 安装说明
 
 1.  **安装 Tampermonkey 插件**
-    *   如果您还没有安装 Tampermonkey，请前往 [Tampermonkey 官网](https://www.tampermonkey.net/) 或者[脚本猫 官网]（https://docs.scriptcat.org/）下载并安装适用于您浏览器的扩展程序（Chrome, Edge, Firefox, Safari 等均支持）。
-2.  **添加脚本**
+    *   如果您还没有安装 Tampermonkey，请前往 [Tampermonkey 官网](https://www.tampermonkey.net/) 或者[脚本猫 官网]（(https://scriptcat.org/zh-CN)下载并安装适用于您浏览器的扩展程序（Chrome, Edge, Firefox, Safari 等均支持）。
+    *   
+    强烈推荐使用脚本猫！！！
+
+    强烈推荐使用脚本猫！！！
+    
+    强烈推荐使用脚本猫！！！
+3.  **添加脚本**
     *   在 Tampermonkey 管理面板中，点击“添加新脚本”。
     *   将 `ticket_helper.js` 中的代码完整复制并粘贴到编辑器中。
     *   点击“文件” -> “保存”（或 Ctrl+S）。
-3.  **生效**
+4.  **生效**
     *   打开或刷新 [12306 官网](https://kyfw.12306.cn/otn/leftTicket/init) (**注意: 最好在"个人中心"页面操作**)，您应该能在页面右上方看到蓝色的“12306 抢票助手”悬浮面板。
 
 <img src="./docs/脚本面板预览.jpg" alt="示例图片" style="width: 70%; height: auto;">
